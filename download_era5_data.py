@@ -181,6 +181,7 @@ def download_data(month, year, era5_request, file_name):
 
     """
     if not os.path.isdir(era5_data_dir):
+        os.mkdir(era5_data_dir)
         raise ValueError("Data target directory as specified in config.py does not exist, change it to an existing"
                          "directory.")
 

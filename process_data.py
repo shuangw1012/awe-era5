@@ -18,6 +18,8 @@ from os.path import join as path_join
 from utils import hour_to_date_str, compute_level_heights
 from config import start_year, final_year, era5_data_dir, model_level_file_name_format, surface_file_name_format,\
     output_file_name, read_n_lats_at_once
+from datetime import datetime, timedelta
+import os
 
 # Set the relevant heights for the different analysis types.
 analyzed_heights = {
@@ -54,6 +56,7 @@ for int_range in analyzed_heights['integration_ranges']:
     analyzed_heights_ids['integration_ranges'].append([heights_of_interest.index(int_range[0]),
                                                        heights_of_interest.index(int_range[1])])
 
+heights_of_interest = [150]
 
 def get_statistics(vals):
     """Determine mean and 5th, 32nd, and 50th percentile of input values.
@@ -138,7 +141,6 @@ def read_raw_data(start_year, final_year):
         levels = levels[i_highest_level:]
     else:
         i_highest_level = 0
-
     return ds, lons, lats, levels, hours, i_highest_level
 
 
@@ -457,7 +459,7 @@ def eval_single_location(location_lat, location_lon, start_year, final_year):
     """
     ds, lons, lats, levels, hours, i_highest_level = read_raw_data(start_year, final_year)
     check_for_missing_data(hours)
-
+        
     i_lat = list(lats).index(location_lat)
     i_lon = list(lons).index(location_lon)
 
@@ -467,9 +469,8 @@ def eval_single_location(location_lat, location_lon, start_year, final_year):
 
     t_levels = ds.variables['t'][:, i_highest_level:, i_lat, i_lon].values
     q_levels = ds.variables['q'][:, i_highest_level:, i_lat, i_lon].values
-
     try:
-        surface_pressure = ds.variables['sp'][:, i_lat, i_lon].values
+        surface_pressure = ds.variables['sp'][:, i_lat, i_lon-1].values
     except KeyError:
         surface_pressure = np.exp(ds.variables['lnsp'][:, i_lat, i_lon].values)
 
@@ -477,9 +478,11 @@ def eval_single_location(location_lat, location_lon, start_year, final_year):
 
     # determine wind at altitudes of interest by means of interpolating the raw wind data
     v_req_alt = np.zeros((len(hours), len(heights_of_interest)))  # result array for writing interpolated data
-
+    
+    #print (levels, surface_pressure, t_levels, q_levels)
+    
     level_heights, density_levels = compute_level_heights(levels, surface_pressure, t_levels, q_levels)
-
+        
     for i_hr in range(len(hours)):
         # np.interp requires x-coordinates of the data points to increase
         if not np.all(level_heights[i_hr, 0] > heights_of_interest):
@@ -498,4 +501,81 @@ def eval_single_location(location_lat, location_lon, start_year, final_year):
 
 
 if __name__ == '__main__':
-    process_complete_grid(output_file_name)
+    #process_complete_grid(output_file_name)
+    #ds, lons, lats, levels, hours, i_highest_level = read_raw_data(start_year=2014, final_year=2015)
+    #eval_single_location(location_lat=-24., location_lon=150.75, start_year=2014, final_year=2015)
+    start_year=2014
+    final_year=2015
+    ds, lons, lats, levels, hours, i_highest_level = read_raw_data(start_year, final_year)
+    check_for_missing_data(hours)
+    
+    input_lat = -24.0771
+    input_lon = 151.2783
+    
+    index_lat = np.where(input_lat-ds.latitude.values>0)[0][0]
+    index_lon = np.where(ds.longitude.values-input_lon>0)[0][0]
+    
+    list_lat = [ds.latitude.values[index_lat-1],ds.latitude.values[index_lat-1],
+                ds.latitude.values[index_lat],ds.latitude.values[index_lat]]
+    list_lon = [ds.longitude.values[index_lon-1],ds.longitude.values[index_lon],
+                ds.longitude.values[index_lon-1],ds.longitude.values[index_lon]]
+    
+    for i in range(4):
+        location_lat=list_lat[i]
+        location_lon=list_lon[i]
+        
+        i_lat = list(lats).index(location_lat)
+        i_lon = list(lons).index(location_lon)
+        
+        v_levels_east = ds.variables['u'][:, i_highest_level:, i_lat, i_lon]
+        v_levels_north = ds.variables['v'][:, i_highest_level:, i_lat, i_lon]
+        
+        # wind direction
+        wind_direction = (np.degrees(np.arctan2(v_levels_north.values, v_levels_east.values)) + 360) % 360
+        #wind_direction = wind_direction[:, ::-1]
+        wind_direction = wind_direction[:,5]
+        
+        # date time
+        def convert_hours_to_datetime(hours):
+            start_date = np.datetime64('1900-01-01T00:00:00.0')
+            time_delta = hours.astype('timedelta64[h]')
+            return start_date + time_delta
+        
+        datetimes = convert_hours_to_datetime(ds.time.values)
+        #datetimes = np.datetime_as_string(datetimes, unit='s')
+    
+        v_levels = (v_levels_east**2 + v_levels_north**2)**.5
+    
+        t_levels = ds.variables['t'][:, i_highest_level:, i_lat, i_lon].values
+        q_levels = ds.variables['q'][:, i_highest_level:, i_lat, i_lon].values
+        try:
+            surface_pressure = ds.variables['sp'][:, i_lat, i_lon-1].values
+        except KeyError:
+            surface_pressure = np.exp(ds.variables['lnsp'][:, i_lat, i_lon].values)
+    
+        ds.close()  # Close the input NetCDF file.
+        
+        # determine wind at altitudes of interest by means of interpolating the raw wind data
+        v_req_alt = np.zeros((len(hours), len(heights_of_interest)))  # result array for writing interpolated data
+        
+        #print (levels, surface_pressure, t_levels, q_levels)
+        
+        level_heights, density_levels = compute_level_heights(levels, surface_pressure, t_levels, q_levels)
+        
+        for i_hr in range(len(hours)):
+            if i_hr%100==0:
+                print (i_hr)
+            # np.interp requires x-coordinates of the data points to increase
+            if not np.all(level_heights[i_hr, 0] > heights_of_interest):
+                raise ValueError("Requested height is higher than height of highest model level.")
+            v_req_alt[i_hr, :] = np.interp(heights_of_interest, level_heights[i_hr, ::-1], v_levels[i_hr, ::-1])
+            
+        rows = list(zip(datetimes.tolist(), v_req_alt.ravel().tolist(),wind_direction.tolist()))
+        
+        # Save the list of tuples as a CSV file
+        with open("ERA5-output-%s-%s.csv"%(location_lat,location_lon), "w") as f:
+            f.write("datetime,wspd,wdir\n")
+            for row in rows:
+                f.write(f"{row[0]},{row[1]},{row[2]}\n")
+        
+    #print (np.average(v_levels.values[:,5]))

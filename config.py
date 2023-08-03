@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 """Configuration file for wind resource analysis.
 
 Attributes:
@@ -25,14 +26,14 @@ Attributes:
 
 """
 # General settings.
-start_year = 2011
-final_year = 2017
-era5_data_dir = '~/ERA5Data/'
+start_year = 2014
+final_year = 2015
+era5_data_dir = os.getcwd()+'/ERA5Data-new/'
 model_level_file_name_format = 'ml_{:d}_{:02d}.netcdf'  # "{:d}_europe_{:d}_130_131_132_133_135.nc"
 surface_file_name_format = 'sfc_{:d}_{:02d}.netcdf'  #"{:d}_europe_{:d}_152.nc"
 
 # Downloading settings.
-area = "65/-20/30/20"
+area = "-23/150/-25/152"
 upper_level = 122
 
 # Processing settings.
