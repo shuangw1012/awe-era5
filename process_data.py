@@ -126,14 +126,15 @@ def read_raw_data(start_year, final_year):
 
     # Load the data from the NetCDF files.
     ds = xr.open_mfdataset(ml_files+sfc_files, decode_times=False)
-
+    
     lons = ds['longitude'].values
     lats = ds['latitude'].values
 
     levels = ds['level'].values  # Model level numbers.
     hours = ds['time'].values  # Hours since 1900-01-01 00:00:0.0, see: print(nc.variables['time']).
 
-    dlevels = np.diff(levels)
+    #dlevels = np.diff(levels)
+    '''
     if not (np.all(dlevels == 1) and levels[-1] == 137):
         i_highest_level = len(levels) - np.argmax(dlevels[::-1] > 1) - 1
         print("Not all the downloaded model levels are consecutive. Only model levels up to {} are evaluated."
@@ -141,8 +142,10 @@ def read_raw_data(start_year, final_year):
         levels = levels[i_highest_level:]
     else:
         i_highest_level = 0
+    '''
+    i_highest_level = 0
     return ds, lons, lats, levels, hours, i_highest_level
-
+    
 
 def check_for_missing_data(hours):
     """"Print message if hours are missing in timestamp series.
@@ -504,23 +507,33 @@ if __name__ == '__main__':
     #process_complete_grid(output_file_name)
     #ds, lons, lats, levels, hours, i_highest_level = read_raw_data(start_year=2014, final_year=2015)
     #eval_single_location(location_lat=-24., location_lon=150.75, start_year=2014, final_year=2015)
-    start_year=2014
-    final_year=2015
+    start_year=2016
+    final_year=2016
     ds, lons, lats, levels, hours, i_highest_level = read_raw_data(start_year, final_year)
-    check_for_missing_data(hours)
-    
-    input_lat = -24.0771
-    input_lon = 151.2783
-    
-    index_lat = np.where(input_lat-ds.latitude.values>0)[0][0]
-    index_lon = np.where(ds.longitude.values-input_lon>0)[0][0]
-    
-    list_lat = [ds.latitude.values[index_lat-1],ds.latitude.values[index_lat-1],
-                ds.latitude.values[index_lat],ds.latitude.values[index_lat]]
-    list_lon = [ds.longitude.values[index_lon-1],ds.longitude.values[index_lon],
-                ds.longitude.values[index_lon-1],ds.longitude.values[index_lon]]
-    
-    for i in range(4):
+    #check_for_missing_data(hours)
+    print ('hello ERA5')
+    Input_lat = np.array([-24.076559,-23.938314,-24.327077,-40.886005,-40.72953958,-40.82826708,-40.991301,-22.11904,-22.607355,-24.166802,
+                          -24.076559,-32.500496,-32.589635,-33.075432,-33.096144,-32.944149,-33.609734,-32.650707,-32.955673])
+    Input_lon = np.array([151.281738,151.167618,151.951904,145.252991,144.6938711,145.384187,145.720596,119.82754,117.795753,119.443359,117.108765,
+                          115.957947,115.837097,115.631104,115.86731,137.454071,136.706349,136.555115,137.615433])
+    Location = np.array(['Gladstone1','Gladstone2','Gladstone3','Burnie1','Burnie2','Burnie3','Burnie4','Pilbara1','Pilbara2','Pilbara3','Pilbara4',
+                         'Pinjara1','Pinjara2','Pinjara3','Pinjara4','Upper1','Upper2','Upper3','Upper4'])
+    for k in range(2,len(Input_lat)):
+        
+        input_lat = Input_lat[k]
+        input_lon = Input_lon[k]
+        
+        index_lat = np.where(input_lat-ds.latitude.values>0)[0][0]
+        index_lon = np.where(ds.longitude.values-input_lon>0)[0][0]
+        
+        list_lat = np.array([ds.latitude.values[index_lat-1],ds.latitude.values[index_lat-1],
+                    ds.latitude.values[index_lat],ds.latitude.values[index_lat]])
+        list_lon = np.array([ds.longitude.values[index_lon-1],ds.longitude.values[index_lon],
+                    ds.longitude.values[index_lon-1],ds.longitude.values[index_lon]])
+        
+        distance = np.sqrt((list_lat-input_lat)**2+(list_lon-input_lon)**2)
+        i = np.where(distance==min(distance))[0][0]
+        
         location_lat=list_lat[i]
         location_lon=list_lon[i]
         
@@ -543,7 +556,7 @@ if __name__ == '__main__':
         
         datetimes = convert_hours_to_datetime(ds.time.values)
         #datetimes = np.datetime_as_string(datetimes, unit='s')
-    
+        
         v_levels = (v_levels_east**2 + v_levels_north**2)**.5
     
         t_levels = ds.variables['t'][:, i_highest_level:, i_lat, i_lon].values
@@ -557,6 +570,8 @@ if __name__ == '__main__':
         
         # determine wind at altitudes of interest by means of interpolating the raw wind data
         v_req_alt = np.zeros((len(hours), len(heights_of_interest)))  # result array for writing interpolated data
+        
+        
         
         #print (levels, surface_pressure, t_levels, q_levels)
         
@@ -572,10 +587,11 @@ if __name__ == '__main__':
             
         rows = list(zip(datetimes.tolist(), v_req_alt.ravel().tolist(),wind_direction.tolist()))
         
+        
         # Save the list of tuples as a CSV file
-        with open("ERA5-output-%s-%s.csv"%(location_lat,location_lon), "w") as f:
+        with open("ERA5-output-%s-%s.csv"%(Location[k],start_year), "w") as f:
             f.write("datetime,wspd,wdir\n")
             for row in rows:
                 f.write(f"{row[0]},{row[1]},{row[2]}\n")
         
-    #print (np.average(v_levels.values[:,5]))
+        #print (np.average(v_levels.values[:,5]))

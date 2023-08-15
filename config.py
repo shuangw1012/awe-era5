@@ -26,14 +26,14 @@ Attributes:
 
 """
 # General settings.
-start_year = 2014
-final_year = 2015
-era5_data_dir = os.getcwd()+'/ERA5Data-new/'
+start_year = 2012
+final_year = 2013
+era5_data_dir = os.getcwd()+'/ERA5Data/'
 model_level_file_name_format = 'ml_{:d}_{:02d}.netcdf'  # "{:d}_europe_{:d}_130_131_132_133_135.nc"
 surface_file_name_format = 'sfc_{:d}_{:02d}.netcdf'  #"{:d}_europe_{:d}_152.nc"
 
 # Downloading settings.
-area = "-23/150/-25/152"
+area = "-5/100/-50/163"
 upper_level = 122
 
 # Processing settings.
